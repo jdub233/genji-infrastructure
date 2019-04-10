@@ -2,10 +2,10 @@
     "kind": "Template",
     "apiVersion": "v1",
     "metadata": {
-        "name": "wordpress-classic-repository",
+        "name": "genji-wp-test",
 	"annotations": {
-            "openshift.io/display-name": "WordPress (Classic / Repository)",
-	    "description": "Creates a WordPress installation with separate MySQL database instance. Plugins, themes and language files are incorporated from a source code repository. Requires that two persistent volumes be available. If a ReadWriteMany persistent volume type is available and used, WordPress can be scaled to multiple replicas and the deployment strategy switched to Rolling to permit rolling deployments on restarts.",
+            "openshift.io/display-name": "WordPress (Testing / Repository)",
+	    "description": "Creates a WordPress installation with MySQL database instance running in the same deployment. Plugins, themes and language files are incorporated from a source code repository. Requires that a single persistent volume be available. Configuration only suitable for testing environments. Cannot be scaled.",
 	    "tags": "quickstart,php,wordpress",
             "iconClass": "icon-php"
 	}
@@ -14,56 +14,38 @@
         {
             "name": "APPLICATION_NAME",
             "description": "The name of the WordPress instance.",
-            "value": "my-wordpress-site",
+            "value": "genji-wp-test",
             "from": "[a-zA-Z0-9]",
             "required": true
         },
         {
             "name": "QUICKSTART_REPOSITORY_URL",
             "description": "The URL of the quickstart Git repository.",
-            "value": "https://github.com/openshift-evangelists/wordpress-quickstart",
+            "value": "https://github.com/jdub233/genji-infrastructure",
             "required": true
         },
         {
             "name": "SOURCE_REPOSITORY_URL",
             "description": "The source repository containing plugins, themes and language files.",
-            "value": "",
+            "value": "https://github.com/jdub233/genji-plugins-themes",
             "required": true
         },
         {
             "name": "SOURCE_REPOSITORY_TAG",
             "description": "The tagged version of the source repository to use.",
-            "value": "master",
+            "value": "develop",
             "required": true
         },
         {
             "name": "WORDPRESS_VOLUME_SIZE",
-            "description": "Size of the persistent volume for Wordpress.",
+            "description": "Size of the persistent volume for all data.",
             "value": "1Gi",
-            "required": true
-        },
-        {
-            "name": "WORDPRESS_VOLUME_TYPE",
-            "description": "Type of the persistent volume for Wordpress.",
-            "value": "ReadWriteOnce",
-            "required": true
-        },
-        {
-            "name": "WORDPRESS_DEPLOYMENT_STRATEGY",
-            "description": "Type of the deployment strategy for Wordpress.",
-            "value": "Recreate",
             "required": true
         },
         {
             "name": "WORDPRESS_MEMORY_LIMIT",
             "description": "Amount of memory available to WordPress.",
             "value": "512Mi",
-            "required": true
-        },
-        {
-            "name": "DATABASE_VOLUME_SIZE",
-            "description": "Size of the persistent volume for the database.",
-            "value": "1Gi",
             "required": true
         },
         {
@@ -235,7 +217,7 @@
             },
             "spec": {
                 "strategy": {
-                    "type": "${WORDPRESS_DEPLOYMENT_STRATEGY}"
+                    "type": "Recreate"
                 },
                 "triggers": [
                     {
@@ -251,6 +233,20 @@
                             "from": {
                                 "kind": "ImageStreamTag",
                                 "name": "${APPLICATION_NAME}-img:latest"
+                            }
+                        }
+                    },
+                    {
+                        "type": "ImageChange",
+                        "imageChangeParams": {
+                            "automatic": true,
+                            "containerNames": [
+                                "mysql"
+                            ],
+                            "from": {
+                                "kind": "ImageStreamTag",
+                                "namespace": "openshift",
+                                "name": "mysql:${MYSQL_VERSION}"
                             }
                         }
                     }
@@ -272,7 +268,7 @@
                             {
                                 "name": "data",
                                 "persistentVolumeClaim": {
-                                    "claimName": "${APPLICATION_NAME}-wordpress-data"
+                                    "claimName": "${APPLICATION_NAME}-data"
                                 }
                             }
                         ],
@@ -340,7 +336,7 @@
                                     },
                                     {
                                         "name": "MYSQL_HOST",
-                                        "value": "${APPLICATION_NAME}-db"
+                                        "value": "127.0.0.1"
                                     },
                                     {
                                         "name": "MYSQL_TABLE_PREFIX",
@@ -350,69 +346,11 @@
                                 "volumeMounts": [
                                     {
                                         "name": "data",
-                                        "mountPath": "/opt/app-root/src"
+                                        "mountPath": "/opt/app-root/src",
+                                        "subPath": "wordpress-data"
                                     }
                                 ]
-                            }
-                        ]
-                    }
-                }
-            }
-        },
-        {
-            "kind": "DeploymentConfig",
-            "apiVersion": "v1",
-            "metadata": {
-                "name": "${APPLICATION_NAME}-db",
-                "labels": {
-                    "app": "${APPLICATION_NAME}"
-                }
-            },
-            "spec": {
-                "strategy": {
-                    "type": "Recreate"
-                },
-                "triggers": [
-                    {
-                        "type": "ConfigChange"
-                    },
-                    {
-                        "type": "ImageChange",
-                        "imageChangeParams": {
-                            "automatic": true,
-                            "containerNames": [
-                                "mysql"
-                            ],
-                            "from": {
-                                "kind": "ImageStreamTag",
-                                "namespace": "openshift",
-                                "name": "mysql:${MYSQL_VERSION}"
-                            }
-                        }
-                    }
-                ],
-                "replicas": 1,
-                "selector": {
-                    "app": "${APPLICATION_NAME}",
-                    "deploymentconfig": "${APPLICATION_NAME}-db"
-                },
-                "template": {
-                    "metadata": {
-                        "labels": {
-                            "app": "${APPLICATION_NAME}",
-                            "deploymentconfig": "${APPLICATION_NAME}-db"
-                        }
-                    },
-                    "spec": {
-                        "volumes": [
-                            {
-                                "name": "data",
-                                "persistentVolumeClaim": {
-                                    "claimName": "${APPLICATION_NAME}-mysql-data"
-                                }
-                            }
-                        ],
-                        "containers": [
+                            },
                             {
                                 "name": "mysql",
                                 "image": "mysql",
@@ -459,7 +397,8 @@
                                 "volumeMounts": [
                                     {
                                         "name": "data",
-                                        "mountPath": "/var/lib/mysql/data"
+                                        "mountPath": "/var/lib/mysql/data",
+                                        "subPath": "mysql-database"
                                     }
                                 ]
                             }
@@ -480,6 +419,12 @@
             "spec": {
                 "ports": [
                     {
+                        "name": "3306-tcp",
+                        "protocol": "TCP",
+                        "port": 3306,
+                        "targetPort": 3306
+                    },
+                    {
                         "name": "8080-tcp",
                         "protocol": "TCP",
                         "port": 8080,
@@ -489,30 +434,6 @@
                 "selector": {
                     "app": "${APPLICATION_NAME}",
                     "deploymentconfig": "${APPLICATION_NAME}"
-                }
-            }
-        },
-        {
-            "kind": "Service",
-            "apiVersion": "v1",
-            "metadata": {
-                "name": "${APPLICATION_NAME}-db",
-                "labels": {
-                    "app": "${APPLICATION_NAME}"
-                }
-            },
-            "spec": {
-                "ports": [
-                    {
-                        "name": "3306-tcp",
-                        "protocol": "TCP",
-                        "port": 3306,
-                        "targetPort": 3306
-                    }
-                ],
-                "selector": {
-                    "app": "${APPLICATION_NAME}",
-                    "deploymentconfig": "${APPLICATION_NAME}-db"
                 }
             }
         },
@@ -545,7 +466,7 @@
             "kind": "PersistentVolumeClaim",
             "apiVersion": "v1",
             "metadata": {
-                "name": "${APPLICATION_NAME}-mysql-data",
+                "name": "${APPLICATION_NAME}-data",
                 "labels": {
                     "app": "${APPLICATION_NAME}"
                 }
@@ -553,26 +474,6 @@
             "spec": {
                 "accessModes": [
                     "ReadWriteOnce"
-                ],
-                "resources": {
-                    "requests": {
-                        "storage": "${DATABASE_VOLUME_SIZE}"
-                    }
-                }
-            }
-        },
-        {
-            "kind": "PersistentVolumeClaim",
-            "apiVersion": "v1",
-            "metadata": {
-                "name": "${APPLICATION_NAME}-wordpress-data",
-                "labels": {
-                    "app": "${APPLICATION_NAME}"
-                }
-            },
-            "spec": {
-                "accessModes": [
-                    "${WORDPRESS_VOLUME_TYPE}"
                 ],
                 "resources": {
                     "requests": {
