@@ -4,6 +4,9 @@ set -x
 
 set -eo pipefail
 
+# Fix the WP version.
+WORDPRESS_INSTALL_VERSION="4.9.5"
+
 # During this initial build phase we are going to construct a new custom
 # image based off the default PHP S2I builder. The resulting image can be
 # run directly to create a standalone instance of WordPress not linked to
